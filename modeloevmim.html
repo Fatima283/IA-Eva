@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bacteria Classification</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 20px;
+        }
+        #result {
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin-top: 20px;
+        }
+        input {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Bacteria Classification</h1>
+    <p>Carga una imagen para identificar si contiene *Streptococcus* o *Staphylococcus*.</p>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="predictButton">Realizar Predicción</button>
+    <div id="result">Cargando modelo...</div>
+    <canvas id="canvas"></canvas>
+
+    <script>
+        let model;
+
+        // Cargar el modelo TensorFlow.js
+        async function loadModel() {
+            model = await tf.loadLayersModel('tfjs_bacteria_model/model.json');
+            document.getElementById('result').innerText = "Modelo cargado. ¡Carga una imagen!";
+        }
+
+        // Preprocesar la imagen
+        async function preprocessImage(image) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const targetSize = 64; // Tamaño del modelo
+            canvas.width = targetSize;
+            canvas.height = targetSize;
+
+            ctx.drawImage(image, 0, 0, targetSize, targetSize);
+
+            // Obtener los datos de la imagen como tensores
+            const imageData = ctx.getImageData(0, 0, targetSize, targetSize);
+            let tensor = tf.browser.fromPixels(imageData).toFloat();
+            tensor = tensor.div(255.0); // Normalizar entre 0 y 1
+            tensor = tensor.expandDims(0); // Expandir dimensiones para el batch
+            return tensor;
+        }
+
+        // Realizar predicción
+        async function predict() {
+            const inputElement = document.getElementById('imageInput');
+            const file = inputElement.files[0];
+            if (!file) {
+                alert("Por favor, selecciona una imagen.");
+                return;
+            }
+
+            const img = new Image();
+            img.src = URL.createObjectURL(file);
+            img.onload = async () => {
+                const tensor = await preprocessImage(img);
+                const prediction = model.predict(tensor);
+                const predictionArray = await prediction.array();
+                const classIndex = predictionArray[0].indexOf(Math.max(...predictionArray[0]));
+                const confidence = Math.max(...predictionArray[0]);
+
+                const labels = ["Streptococcus", "Staphylococcus"];
+                document.getElementById('result').innerText =
+                    `Predicción: ${labels[classIndex]} (Confianza: ${(confidence * 100).toFixed(2)}%)`;
+
+                // Mostrar imagen en el canvas
+                const canvas = document.getElementById('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+            };
+        }
+
+        document.getElementById('predictButton').addEventListener('click', predict);
+
+        // Cargar el modelo al cargar la página
+        loadModel();
+    </script>
+</body>
+</html>
